@@ -116,15 +116,26 @@ def _gen_voice(payload: dict, out: Path) -> Path:
 # ---------------------------------------------------------------- MUSIC (ACE-Step)
 def _gen_music(payload: dict, out: Path) -> Path:
     # ACE-Step ships its own pipeline (installed from source in bootstrap).
+    # Signature per the ACE-Step repo's inference example — VERIFY-ON-BOX and
+    # reconcile arg names with the installed version's pipeline_ace_step.py.
     from acestep.pipeline_ace_step import ACEStepPipeline    # VERIFY-ON-BOX
     global _ACESTEP
     if _ACESTEP is None:
-        _ACESTEP = ACEStepPipeline(checkpoint_dir=os.environ.get("ACESTEP_CKPT"))
+        _ACESTEP = ACEStepPipeline(
+            checkpoint_dir=os.environ.get("ACESTEP_CKPT") or None,  # None -> auto-download
+            dtype="bfloat16",
+            cpu_offload=True,        # share the card with the Wan worker
+        )
     out = out.with_suffix(".wav")
     _ACESTEP(
-        prompt=payload.get("tags", "gentle childrens music, cheerful, acoustic"),
-        lyrics=payload.get("lyrics", ""),
-        audio_duration=payload.get("duration", 30),
+        format="wav",
+        audio_duration=float(payload.get("duration", 30)),
+        prompt=payload.get("tags",
+                           "cinematic, orchestral, ambient, uplifting, emotional strings, "
+                           "soft piano, building crescendo, epic, inspiring, instrumental"),
+        lyrics=payload.get("lyrics", "[inst]"),      # instrumental, no vocals
+        infer_step=int(payload.get("infer_step", 60)),
+        guidance_scale=float(payload.get("guidance_scale", 15.0)),
         save_path=str(out),
     )
     return out
