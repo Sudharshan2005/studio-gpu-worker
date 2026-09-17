@@ -15,7 +15,7 @@ cd "$HERE"
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 
 # --- GPU sanity ---
-nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv || true
+nvidia-smi --query-gpu=index,uuid,memory.free,driver_version --format=csv || true
 
 # --- python env (persists in the clone; teardown wipes the whole clone) ---
 python3 -m venv .venv && source .venv/bin/activate
@@ -23,6 +23,15 @@ pip install --quiet --upgrade pip
 
 # torch matched to the box CUDA (edit --extra-index-url in requirements.txt if needed)
 pip install --quiet -r requirements.txt
+
+# --- pin ONE free GPU by UUID (shared box; GPU 5 broken => index shift) ---
+# You can override by exporting CUDA_VISIBLE_DEVICES in .env.
+if [ -z "${CUDA_VISIBLE_DEVICES:-}" ]; then
+  CUDA_VISIBLE_DEVICES="$(python3 gpu_pick.py --need-gb "${NEED_GB:-40}")" || {
+    echo "[bootstrap] no free GPU with enough VRAM — aborting rather than crowding tenants."; exit 1; }
+  export CUDA_VISIBLE_DEVICES
+fi
+echo "[bootstrap] pinned GPU: ${CUDA_VISIBLE_DEVICES}"
 
 # models that aren't on PyPI (install once; skip if already present)
 python3 -c "import acestep" 2>/dev/null || \
@@ -36,7 +45,10 @@ export LORA_DIR="${LORA_DIR:-$HERE/loras}"; mkdir -p "$LORA_DIR"
 
 export OUTPUT_DIR="$HERE/outputs"; mkdir -p "$OUTPUT_DIR"
 echo "[bootstrap] starting worker -> $CONTROL_PLANE_URL"
-python3 worker.py
+python3 worker.py &
+echo $! > "$HERE/worker.pid"
+wait $!
 
 echo "[bootstrap] queue drained. Outputs: $OUTPUT_DIR"
-echo "[bootstrap] DOWNLOAD them (scp), then: ./teardown.sh $HERE"
+echo "[bootstrap] DOWNLOAD them (scp), then:"
+echo "            ./teardown.sh $HERE --pidfile $HERE/worker.pid"

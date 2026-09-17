@@ -35,3 +35,17 @@ scp -r user@l40s:$(pwd)/outputs ./local   # download from your Mac
 calls could not be executed off-box. Treat the first run of each `kind` as an
 integration test; points needing confirmation are marked `# VERIFY-ON-BOX`.
 Language note: Kokoro is weak on te/ta/kn — use Chatterbox for those (see models.py).
+
+## Shared box: vai-dev2 (8× L40S, 46GB, driver 580 / CUDA 13.0)
+This is NOT a rented instance you own — other tenants run vLLM/NIM/VST on other
+GPUs. So:
+- **Pin one free GPU by UUID** — `gpu_pick.py` does this automatically (bootstrap
+  calls it). GPU 5 is broken, which shifts CUDA indices, so index pinning is
+  unsafe; UUID pinning avoids it. Idle card default:
+  `GPU-8b870518-304a-92a4-b17e-c2633fca54e1`.
+- **teardown removes ONLY your footprint** — your process (by pidfile) + your
+  scratch. It does NOT prune docker globally or kill the box. Freeing your GPU =
+  your process exiting.
+- **There is no instance to terminate.** "Leave no trace" here means remove your
+  own clone/outputs/process, never touch other tenants' work.
+- torch: driver 580 runs cu128 or cu124 wheels; requirements.txt uses cu128.

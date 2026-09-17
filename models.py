@@ -2,7 +2,9 @@
 STUDIO GPU model registry — the EXACT models this worker loads on the L40S.
 
 Every model here is open-weight and commercially usable (verified in
-../MASTER_PLAN.md §10). VRAM notes are for a single L40S (48GB).
+../MASTER_PLAN.md §10). VRAM notes are for one L40S on the SHARED box vai-dev2
+(46GB/card, driver 580.173.02, CUDA 13.0). Pick a free card by UUID via
+gpu_pick.py — do NOT assume a whole card is yours; other tenants run vLLM/NIM.
 
   VIDEO   Wan 2.2 TI2V-5B   -> Wan-AI/Wan2.2-TI2V-5B-Diffusers   (~40GB, fits)
   VOICE   Kokoro-82M        -> hexgrad/Kokoro-82M                (tiny)

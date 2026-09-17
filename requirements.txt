@@ -1,6 +1,9 @@
-# GPU worker deps. Install the CUDA-matched torch build FIRST (see bootstrap.sh),
-# then these. Pin later once the box's CUDA is known.
---extra-index-url https://download.pytorch.org/whl/cu124
+# GPU worker deps for vai-dev2 (driver 580.173.02, CUDA 13.0).
+# Driver 580 is new enough to run cu124 OR cu128 torch wheels (drivers are
+# backward-compatible with older CUDA runtimes). cu128 is the closest match;
+# fall back to cu124 if a wheel is missing. Confirm on-box with:
+#   python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+--extra-index-url https://download.pytorch.org/whl/cu128
 torch
 torchvision
 torchaudio
