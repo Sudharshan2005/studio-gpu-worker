@@ -9,6 +9,7 @@
 torch
 torchvision
 torchaudio
+torchcodec              # torchaudio 2.9+ save() delegates to TorchCodec's encoder; ACE-Step's .wav write needs it
 diffusers>=0.35.0        # Wan 2.2 support (WanPipeline / WanImageToVideoPipeline)
 transformers>=4.49.0
 accelerate>=1.0.0
