@@ -167,13 +167,74 @@ def _resolve_in_outputs(name_or_id, channel: str, kind: str, out_dir: Path) -> P
     return out_dir / f"job{s}_{channel}_{kind}.{ext}"
 
 
+def _ff_escape(s: str) -> str:
+    """Escape text for ffmpeg drawtext."""
+    return (s.replace("\\", r"\\\\").replace(":", r"\:")
+             .replace("'", r"\'").replace("%", r"\%"))
+
+
+# base (x_expr, y_expr) per anchor — animation adds a time-varying offset to these
+_POS = {
+    "center": ("(w-text_w)/2", "(h-text_h)/2"),
+    "top": ("(w-text_w)/2", "h*0.10"),
+    "bottom": ("(w-text_w)/2", "h-text_h-h*0.10"),
+    "topleft": ("w*0.06", "h*0.10"),
+    "bottomleft": ("w*0.06", "h-text_h-h*0.10"),
+    "bottomright": ("w-text_w-w*0.06", "h-text_h-h*0.10"),
+    "lower-third": ("w*0.06", "h*0.78"),
+}
+
+
+def _drawtext(ov: dict) -> str:
+    """One animated text overlay: it eases in, holds, eases out — with motion
+    (rise / slide / fade), a soft shadow, and an optional background box.
+
+    Keys: text, pos, size, color, start, end, fade, anim, slide, box, fontfile.
+    anim ∈ {fade, rise, drop, slide-left, slide-right}. slide = travel distance px.
+    Text is a POST overlay — crisp and correct; the model never renders letters.
+    """
+    font = ov.get("fontfile", os.environ.get(
+        "OVERLAY_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+    bx, by = _POS.get(ov.get("pos", "bottom"), _POS["bottom"])
+    start, end, fd = ov.get("start", 0), ov.get("end", 10_000), ov.get("fade", 0.7)
+    anim = ov.get("anim", "rise")
+    off = ov.get("slide", 60)
+
+    # disp: 1 at the in/out edges, 0 during the hold — eased offset magnitude
+    disp = (f"({off}*max(clip(({start}+{fd}-t)/{fd}\\,0\\,1)\\,"
+            f"clip((t-({end}-{fd}))/{fd}\\,0\\,1)))")
+    x, y = bx, by
+    if anim == "rise":
+        y = f"{by}+{disp}"           # starts below, rises to place
+    elif anim == "drop":
+        y = f"{by}-{disp}"
+    elif anim == "slide-left":
+        x = f"{bx}+{disp}"           # enters from the right
+    elif anim == "slide-right":
+        x = f"{bx}-{disp}"
+
+    alpha = (f"if(lt(t\\,{start})\\,0\\,if(lt(t\\,{start}+{fd})\\,(t-{start})/{fd}\\,"
+             f"if(lt(t\\,{end}-{fd})\\,1\\,if(lt(t\\,{end})\\,({end}-t)/{fd}\\,0))))")
+    box = ""
+    if ov.get("box"):
+        box = f":box=1:boxcolor=black@{ov.get('box_opacity', 0.45)}:boxborderw=26"
+    return (f"drawtext=fontfile='{font}':text='{_ff_escape(ov['text'])}':"
+            f"fontsize={ov.get('size', 42)}:fontcolor={ov.get('color', 'white')}:"
+            f"x='{x}':y='{y}':alpha='{alpha}'{box}:"
+            f"shadowcolor=black@0.6:shadowx=2:shadowy=2")
+
+
 def _assemble(payload: dict, out: Path) -> Path:
-    """Concat shots into one video, optionally mixing a music track.
+    """Concat shots into one video, optionally mixing music and burning in text.
 
     Decoupled from the operator: pass `shot_ids` (job ids) + `channel` and the
     worker resolves the files from its OWN outputs dir — the operator never needs
     the box's paths. `shots` (explicit paths) still works. Music via `music_id`
     (a music job's id) or `music` (a path). Output is ONE combined mp4.
+
+    `overlays`: list of text overlays burned in AFTER generation (crisp, correct
+    text — the model never renders letters). Each: {text, pos, size, color,
+    start, end, fade, box}. Use for brand name, tagline, CTA on ads.
     """
     out_dir = Path(os.environ.get("OUTPUT_DIR", "./outputs"))
     channel = payload.get("channel", "")
@@ -196,13 +257,24 @@ def _assemble(payload: dict, out: Path) -> Path:
     elif payload.get("music"):
         music = _resolve_in_outputs(payload["music"], channel, "music", out_dir)
 
+    has_music = bool(music and Path(music).exists())
+    overlays = payload.get("overlays") or []
+
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(listfile)]
-    if music and Path(music).exists():
-        cmd += ["-i", str(music), "-map", "0:v", "-map", "1:a",
-                "-c:v", "libx264", "-c:a", "aac", "-shortest"]
+    if has_music:
+        cmd += ["-i", str(music)]
+
+    if overlays:
+        chain = ",".join(_drawtext(o) for o in overlays)
+        cmd += ["-filter_complex", f"[0:v]{chain}[v]", "-map", "[v]"]
     else:
-        cmd += ["-c:v", "libx264", "-an"]
-    cmd += ["-pix_fmt", "yuv420p", str(out)]
+        cmd += ["-map", "0:v"]
+
+    if has_music:
+        cmd += ["-map", "1:a", "-c:a", "aac", "-shortest"]
+    else:
+        cmd += ["-an"]
+    cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)]
     subprocess.run(cmd, check=True)
     listfile.unlink(missing_ok=True)
     return out
