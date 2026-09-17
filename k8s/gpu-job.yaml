@@ -1,0 +1,36 @@
+# Ephemeral single-L40S generation Job.
+# Runs the worker to completion, then the pod exits (ttlSecondsAfterFinished
+# garbage-collects it, so nothing lingers or bills).
+#
+# Secrets are pulled from a k8s Secret at runtime, never baked into the image:
+#   kubectl create secret generic studio-worker \
+#     --from-literal=CONTROL_PLANE_URL=https://your-app.onrender.com \
+#     --from-literal=WORKER_TOKEN=xxxx
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: studio-worker
+spec:
+  ttlSecondsAfterFinished: 60      # pod is auto-deleted 60s after it finishes
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: YOUR_REGISTRY/studio-worker:latest   # image with worker.py + models
+          envFrom:
+            - secretRef:
+                name: studio-worker
+          env:
+            - name: IDLE_EXITS_AFTER
+              value: "3"
+          resources:
+            limits:
+              nvidia.com/gpu: 1     # exactly one L40S
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+      volumes:
+        - name: scratch
+          emptyDir: {}              # ephemeral: wiped when the pod dies

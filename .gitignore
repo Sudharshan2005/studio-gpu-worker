@@ -1,0 +1,10 @@
+# keep .env committed (intentional) — do NOT add .env here
+.venv/
+__pycache__/
+*.pyc
+outputs/
+LatentSync/
+loras/*.safetensors
+*.mp4
+*.wav
+*.png

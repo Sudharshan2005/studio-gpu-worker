@@ -1,0 +1,17 @@
+# GPU worker deps. Install the CUDA-matched torch build FIRST (see bootstrap.sh),
+# then these. Pin later once the box's CUDA is known.
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch
+torchvision
+torchaudio
+diffusers>=0.35.0        # Wan 2.2 support (WanPipeline / WanImageToVideoPipeline)
+transformers>=4.49.0
+accelerate>=1.0.0
+ftfy
+imageio
+imageio-ffmpeg
+soundfile
+kokoro>=0.9.4            # Kokoro TTS
+huggingface_hub>=0.26.0
+requests>=2.32.0
+# ACE-Step + LatentSync install from source in bootstrap (git repos, not on PyPI)
