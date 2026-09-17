@@ -259,19 +259,25 @@ def _assemble(payload: dict, out: Path) -> Path:
 
     has_music = bool(music and Path(music).exists())
     overlays = payload.get("overlays") or []
+    # normalize to -14 LUFS / -1.5 dBTP (YouTube target, prevents clipping)
+    normalize = payload.get("normalize_audio", True)
 
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(listfile)]
     if has_music:
         cmd += ["-i", str(music)]
 
+    filters = []
     if overlays:
         chain = ",".join(_drawtext(o) for o in overlays)
-        cmd += ["-filter_complex", f"[0:v]{chain}[v]", "-map", "[v]"]
-    else:
-        cmd += ["-map", "0:v"]
+        filters.append(f"[0:v]{chain}[v]")
+    if has_music and normalize:
+        filters.append("[1:a]loudnorm=I=-14:TP=-1.5:LRA=11[a]")
+    if filters:
+        cmd += ["-filter_complex", ";".join(filters)]
 
+    cmd += ["-map", "[v]" if overlays else "0:v"]
     if has_music:
-        cmd += ["-map", "1:a", "-c:a", "aac", "-shortest"]
+        cmd += ["-map", "[a]" if normalize else "1:a", "-c:a", "aac", "-shortest"]
     else:
         cmd += ["-an"]
     cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)]
