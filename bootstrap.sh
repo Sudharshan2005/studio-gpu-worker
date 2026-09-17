@@ -45,7 +45,7 @@ export LORA_DIR="${LORA_DIR:-$HERE/loras}"; mkdir -p "$LORA_DIR"
 
 export OUTPUT_DIR="$HERE/outputs"; mkdir -p "$OUTPUT_DIR"
 echo "[bootstrap] starting worker -> $CONTROL_PLANE_URL"
-python3 worker.py &
+python3 -u worker.py &
 echo $! > "$HERE/worker.pid"
 wait $!
 
