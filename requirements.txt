@@ -1,9 +1,11 @@
 # GPU worker deps for vai-dev2 (driver 580.173.02, CUDA 13.0).
-# Driver 580 is new enough to run cu124 OR cu128 torch wheels (drivers are
-# backward-compatible with older CUDA runtimes). cu128 is the closest match;
-# fall back to cu124 if a wheel is missing. Confirm on-box with:
-#   python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
---extra-index-url https://download.pytorch.org/whl/cu128
+# Install from PyPI ONLY -- it ships cu130 builds, an exact match for this box.
+# Do NOT add an --extra-index-url for a cuXXX wheelhouse: with two eligible
+# indexes pip resolves per-package and splits the stack (torch+torchvision came
+# back cu130 from PyPI, torchaudio came back +cu128), and torchaudio then raises
+# at import on the CUDA mismatch -- surfacing as a bogus "Could not import
+# UMT5EncoderModel" from the transformers lazy loader. Confirm on-box with:
+#   python -c "import torch, torchaudio; print(torch.__version__, torchaudio.__version__, torch.cuda.is_available())"
 torch
 torchvision
 torchaudio

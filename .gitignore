@@ -1,4 +1,8 @@
-# keep .env committed (intentional) — do NOT add .env here
+# Live credentials. .env is NOT committed -- it holds a real WORKER_TOKEN and
+# HF_TOKEN. Copy .env.example to .env and fill it in locally.
+.env
+# local backups of edited scripts (can contain secrets copied out of .env)
+*.orig
 .venv/
 __pycache__/
 *.pyc
