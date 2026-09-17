@@ -145,19 +145,52 @@ def _gen_lipsync(payload: dict, out: Path) -> Path:
 
 
 # ---------------------------------------------------------------- ASSEMBLE (FFmpeg)
+def _resolve_in_outputs(name_or_id, channel: str, kind: str, out_dir: Path) -> Path:
+    """A shot/music entry may be an explicit path, or a job-id we turn into the
+    worker's own output filename (job{id}_{channel}_{kind}.mp4/.wav)."""
+    s = str(name_or_id)
+    if "/" in s or s.endswith((".mp4", ".wav")):        # explicit path/filename
+        p = Path(s)
+        return p if p.is_absolute() else (out_dir / p.name)
+    ext = "wav" if kind in ("voice", "music") else "mp4"
+    return out_dir / f"job{s}_{channel}_{kind}.{ext}"
+
+
 def _assemble(payload: dict, out: Path) -> Path:
-    """Concat shots + mix voice/music per the Scene JSON. `payload['shots']` are
-    local file paths already downloaded to the worker."""
-    shots = payload["shots"]
+    """Concat shots into one video, optionally mixing a music track.
+
+    Decoupled from the operator: pass `shot_ids` (job ids) + `channel` and the
+    worker resolves the files from its OWN outputs dir — the operator never needs
+    the box's paths. `shots` (explicit paths) still works. Music via `music_id`
+    (a music job's id) or `music` (a path). Output is ONE combined mp4.
+    """
+    out_dir = Path(os.environ.get("OUTPUT_DIR", "./outputs"))
+    channel = payload.get("channel", "")
+
+    entries = payload.get("shot_ids") or payload.get("shots")
+    if not entries:
+        raise ValueError("assemble needs 'shot_ids' or 'shots'")
+    shots = [_resolve_in_outputs(e, channel, "shot", out_dir) for e in entries]
+    for s in shots:
+        if not s.exists():
+            raise FileNotFoundError(f"assemble: shot not found: {s}")
+
     listfile = out.with_suffix(".txt")
-    listfile.write_text("".join(f"file '{s}'\n" for s in shots))
+    listfile.write_text("".join(f"file '{s.resolve()}'\n" for s in shots))
     out = out.with_suffix(".mp4")
+
+    music = None
+    if payload.get("music_id"):
+        music = _resolve_in_outputs(payload["music_id"], channel, "music", out_dir)
+    elif payload.get("music"):
+        music = _resolve_in_outputs(payload["music"], channel, "music", out_dir)
+
     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(listfile)]
-    if payload.get("audio"):
-        cmd += ["-i", payload["audio"], "-c:v", "libx264", "-c:a", "aac",
-                "-shortest"]
+    if music and Path(music).exists():
+        cmd += ["-i", str(music), "-map", "0:v", "-map", "1:a",
+                "-c:v", "libx264", "-c:a", "aac", "-shortest"]
     else:
-        cmd += ["-c:v", "libx264"]
+        cmd += ["-c:v", "libx264", "-an"]
     cmd += ["-pix_fmt", "yuv420p", str(out)]
     subprocess.run(cmd, check=True)
     listfile.unlink(missing_ok=True)
