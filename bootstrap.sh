@@ -36,7 +36,8 @@ echo "[bootstrap] pinned GPU: ${CUDA_VISIBLE_DEVICES}"
 # models that aren't on PyPI (install once; skip if already present)
 python3 -c "import acestep" 2>/dev/null || \
   pip install --quiet "git+https://github.com/ace-step/ACE-Step.git"
-[ -d LatentSync ] || git clone --depth 1 https://github.com/bytedance/LatentSync.git
+# [session-trim] shot job never imports latentsync:
+# [ -d LatentSync ] || git clone --depth 1 https://github.com/bytedance/LatentSync.git
 export LATENTSYNC_DIR="$HERE/LatentSync"
 export LORA_DIR="${LORA_DIR:-$HERE/loras}"; mkdir -p "$LORA_DIR"
 

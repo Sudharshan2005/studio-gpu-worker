@@ -3,6 +3,8 @@
 .env
 # local backups of edited scripts (can contain secrets copied out of .env)
 *.orig
+# bootstrap writes the worker pid here for teardown.sh
+worker.pid
 .venv/
 __pycache__/
 *.pyc

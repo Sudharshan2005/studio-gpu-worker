@@ -16,6 +16,11 @@ ftfy
 imageio
 imageio-ffmpeg
 soundfile
+# torchaudio >=2.9 delegates torchaudio.save() to TorchCodec and ignores the
+# legacy `backend=` arg, so ACE-Step's save_wav_file() dies with
+#   'TorchCodec is required for save_with_torchcodec'
+# after generating the audio. torchcodec provides the encoder it now needs.
+torchcodec
 kokoro>=0.9.4            # Kokoro TTS
 huggingface_hub>=0.26.0
 requests>=2.32.0
